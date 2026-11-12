@@ -2,12 +2,12 @@
 <html lang="it">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Ore</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>OreLavoro</title>
 <meta name="description" content="Conteggio delle ore lavorative, dati salvati solo sul dispositivo.">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-title" content="Ore">
+<meta name="apple-mobile-web-app-title" content="OreLavoro">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="theme-color" content="#f2f2f7" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
@@ -54,7 +54,7 @@
 }
 
 *{box-sizing:border-box}
-html{-webkit-text-size-adjust:100%}
+html{-webkit-text-size-adjust:100%;touch-action:manipulation}
 body{margin:0;min-height:100vh;min-height:100dvh;color:var(--text);
   background:radial-gradient(900px 420px at 50% -160px,var(--accent-soft),transparent 70%) no-repeat,var(--bg);
   font:17px/1.38 -apple-system,BlinkMacSystemFont,system-ui,"SF Pro Text","Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
@@ -369,6 +369,29 @@ table.yt{border-collapse:collapse;font-size:14px;white-space:nowrap;width:100%}
   .p-foot{margin-top:14pt;font-size:7.5pt;color:#777;display:flex;justify-content:space-between}
 }
 
+/* v1.1 */
+.tiles3{grid-template-columns:repeat(3,1fr)}
+.tiles3 .tile{padding:10px}
+.tiles3 .tile .v{font-size:20px}
+.tiles3 .tile .l{font-size:12px}
+.calc span{align-self:center}
+.fbdot{position:absolute;top:5px;left:6px;width:6px;height:6px;border-radius:50%;background:var(--fb)}
+.fbdot-l{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--fb);margin:0 2px}
+:root{--fb:#2f8f8a}
+@media (prefers-color-scheme: dark){:root{--fb:#6fd0c8}}
+.yrow{display:flex;align-items:center;gap:10px;width:100%;text-align:left;padding:12px 12px 12px 16px;min-height:60px;position:relative;transition:background .15s}
+.yrow+.yrow::after{content:"";position:absolute;top:0;left:16px;right:0;height:.5px;background:var(--sep)}
+button.yrow:active{background:var(--fill2)}
+.yrow>svg{width:16px;height:16px;color:var(--text3)}
+.yr-l{flex:1;display:flex;flex-direction:column;min-width:0;gap:2px}
+.yr-m{font-size:16px;font-weight:600;display:flex;align-items:center;gap:8px}
+.yr-h{font-size:18px;font-weight:600}
+.yrow.tot{background:var(--fill2);padding-right:38px}
+.yrow.tot .yr-m{font-weight:700}
+.yrow .ms{white-space:normal}
+@media print{.p-tot{grid-template-columns:repeat(3,1fr)}}
+.tile .l{display:block;line-height:1.25}
+
 </style>
 </head>
 <body>
@@ -406,6 +429,7 @@ const ymLabel=ym=>`${cap(MESI[+ym.slice(5)-1])} ${ym.slice(0,4)}`;
 const monthName=ym=>MESI[+ym.slice(5)-1];
 const daysInMonth=ym=>{const[y,m]=ym.split('-').map(Number);return new Date(y,m,0).getDate();};
 const toMin=t=>{if(!t)return null;const[h,m]=t.split(':').map(Number);return h*60+m;};
+const fromMin=m=>`${pad(Math.floor(m/60)%24)}:${pad(m%60)}`;
 const fmtHM=min=>{if(min==null||isNaN(min))return '—';const s=min<0?'-':'';min=Math.abs(Math.round(min));return `${s}${Math.floor(min/60)}:${pad(min%60)}`;};
 const fmtDec=min=>(Math.round(min)/60).toFixed(2).replace('.',',');
 const fmtIt=ds=>{const[y,m,d]=ds.split('-');return `${d}/${m}/${y}`;};
@@ -449,14 +473,17 @@ function holidaysOf(y){if(holCache[y])return holCache[y];const o=nationalHoliday
 const holidayName=ds=>holidaysOf(+ds.slice(0,4))[ds]||null;
 
 /* ================= Stato e salvataggio ================= */
-function weeklyDefault(){const w={};for(let i=0;i<7;i++)w[i]={on:i>=1&&i<=5,start:'09:00',end:'18:00',pause:60};return w;}
-function defaults(){return{version:1,
-  settings:{weekly:weeklyDefault(),contractMin:480,startDate:todayStr(),customHolidays:[]},
-  overrides:{},records:{},months:{},
+function weeklyDefault(){const w={};for(let i=0;i<7;i++)w[i]={on:i>=1&&i<=5,start:'09:00',end:'17:00'};return w;}
+function defaults(){return{version:2,
+  settings:{weekly:weeklyDefault(),dailyMin:480,startDate:todayStr(),customHolidays:[]},
+  overrides:{},records:{},fuori:{},months:{},
   meta:{installedAt:iso(),lastBackup:null,noticeShown:{},backupSnoozeUntil:0}};}
 function normalize(d){const b=defaults();if(!d||typeof d!=='object')return b;const s=d.settings||{};
-  return{version:1,settings:{...b.settings,...s,weekly:{...b.settings.weekly,...(s.weekly||{})},customHolidays:s.customHolidays||[]},
-    overrides:d.overrides||{},records:d.records||{},months:d.months||{},meta:{...b.meta,...(d.meta||{})}};}
+  const weekly={};for(let i=0;i<7;i++){const w={...b.settings.weekly[i],...((s.weekly||{})[i]||{})};weekly[i]={on:!!w.on,start:w.start,end:w.end};}
+  const overrides={};for(const[k,o]of Object.entries(d.overrides||{})){const n={...o};delete n.pause;if(n.tipo==='extra')n.tipo='orario';overrides[k]=n;}
+  return{version:2,
+    settings:{weekly,dailyMin:+(s.dailyMin??s.contractMin??480),startDate:s.startDate||b.settings.startDate,customHolidays:s.customHolidays||[]},
+    overrides,records:d.records||{},fuori:d.fuori||{},months:d.months||{},meta:{...b.meta,...(d.meta||{})}};}
 let S=defaults();
 
 const DB={db:null,
@@ -466,7 +493,7 @@ const DB={db:null,
   set(k,v){return new Promise((res,rej)=>{const t=this.db.transaction('kv','readwrite');t.objectStore('kv').put(v,k);t.oncomplete=()=>res();t.onerror=()=>rej(t.error);});}};
 let useLS=false;
 async function load(){
-  try{await DB.open();const v=await DB.get('state');S=normalize(v?JSON.parse(v):null);if(!v)save();}
+  try{await DB.open();const v=await DB.get('state');S=normalize(v?JSON.parse(v):null);save();}
   catch(e){useLS=true;try{S=normalize(JSON.parse(localStorage.getItem('ore-lavoro')||'null'));}catch(_){S=defaults();}}
   holCache={};
 }
@@ -481,28 +508,29 @@ function planFor(ds){
   if(ov){
     if(ov.tipo==='riposo')return{working:false,kind:'riposo',hol};
     if(ov.tipo==='festivo')return{working:false,kind:'festivo',hol:ov.nome||'Festività locale'};
-    return{working:true,kind:ov.tipo,start:ov.start,end:ov.end,pause:ov.pause??0,extra:ov.tipo==='extra'||!!hol,hol};
+    return{working:true,kind:'orario',start:ov.start,end:ov.end,hol};
   }
   if(hol)return{working:false,kind:'festivo',hol};
-  if(w.on)return{working:true,kind:'ordinario',start:w.start,end:w.end,pause:w.pause,extra:false};
+  if(w.on)return{working:true,kind:'ordinario',start:w.start,end:w.end};
   return{working:false,kind:'libero'};
 }
-function spanMin(start,end,pause){const s=toMin(start),e=toMin(end);if(s==null||e==null)return 0;let d=e-s;if(d<0)d+=1440;return Math.max(0,d-(+pause||0));}
+function spanMin(start,end){const s=toMin(start),e=toMin(end);if(s==null||e==null)return 0;let d=e-s;if(d<0)d+=1440;return d;}
+const endFrom=start=>fromMin(((toMin(start)||0)+S.settings.dailyMin)%1440);
 function calcRec(r){
-  if(!r||r.stato!=='lavorato')return{worked:0,ord:0,ot:0};
-  if(r.frozen)return r.frozen;
-  const w=spanMin(r.start,r.end,r.pause),c=S.settings.contractMin;
-  if(r.extra)return{worked:w,ord:0,ot:w};
-  return{worked:w,ord:Math.min(w,c),ot:Math.max(0,w-c)};
+  if(!r||r.stato!=='lavorato')return{worked:0};
+  if(r.frozen)return{worked:r.frozen.worked};
+  return{worked:spanMin(r.start,r.end)};
 }
+const fbMin=ds=>{const f=S.fuori[ds];return f?spanMin(f.start,f.end):0;};
 function monthTotals(ym){
-  const t={worked:0,ord:0,ot:0,days:0,abs:{},absDays:0};
+  const t={worked:0,days:0,abs:{},absDays:0};
   for(const[d,r]of Object.entries(S.records)){if(ymOf(d)!==ym)continue;
-    if(r.stato==='lavorato'){const c=calcRec(r);t.worked+=c.worked;t.ord+=c.ord;t.ot+=c.ot;t.days++;}
+    if(r.stato==='lavorato'){t.worked+=calcRec(r).worked;t.days++;}
     else if(r.stato==='assenza'){t.abs[r.tipo]=(t.abs[r.tipo]||0)+1;t.absDays++;}}
   return t;
 }
 const totalsFor=ym=>isFinal(ym)&&S.months[ym].totals?S.months[ym].totals:monthTotals(ym);
+const avgDay=t=>t.days?t.worked/t.days:0;
 function isStarted(ds,p){const t=todayStr();return ds<t||(ds===t&&nowMin()>=toMin(p.start));}
 function pendingList(){
   const out=[],t=todayStr();let d=parse(S.settings.startDate),g=0;const end=parse(t);
@@ -532,18 +560,18 @@ function lastBackupText(){if(!S.meta.lastBackup)return 'Non hai ancora esportato
   const d=new Date(S.meta.lastBackup);const days=Math.floor((Date.now()-d)/864e5);
   return `Ultimo backup: ${d.toLocaleDateString('it-IT',{day:'numeric',month:'long',year:'numeric'})}${days>0?` (${days} ${days===1?'giorno':'giorni'} fa)`:' (oggi)'}`;}
 
-/* righe del mese, condivise da elenco, CSV e stampa */
+/* righe del mese, condivise da elenco, CSV e stampa (le ore fuori busta non compaiono) */
 function monthRows(ym,all=false){const out=[];
   for(let d=1;d<=daysInMonth(ym);d++){const ds=`${ym}-${pad(d)}`,r=S.records[ds],p=planFor(ds),st=dayStatus(ds);
     if(!all&&st==='off'&&!r)continue;out.push({ds,r,p,st,c:calcRec(r)});}
   return out;}
 function rowInfo({ds,r,p,st,c}){const t=todayStr();
-  if(r&&r.stato==='lavorato')return{title:`${r.start} – ${r.end}`,sub:[`pausa ${fmtHM(r.pause)}`,r.extra?'turno extra':'',r.note].filter(Boolean).join(' · '),hours:fmtHM(c.worked),ot:c.ot,type:r.extra?'Turno extra':'Lavorato'};
-  if(r)return{title:ASSENZE[r.tipo]||'Assenza',sub:r.note||'Assenza',hours:'—',ot:0,type:ASSENZE[r.tipo]||'Assenza'};
-  if(st==='holiday')return{title:p.hol,sub:'Festivo',hours:'',ot:0,type:'Festivo'};
-  if(st==='pending')return{title:'Da confermare',sub:`Previsto ${p.start} – ${p.end}`,hours:'—',ot:0,type:'Da confermare'};
-  if(st==='planned'){const fut=ds>t;return{title:fut?'Programmato':'Non registrato',sub:`${p.start} – ${p.end} · pausa ${fmtHM(p.pause)}`,hours:'',ot:0,type:fut?'Programmato':'Non registrato'};}
-  return{title:'Riposo',sub:'',hours:'',ot:0,type:'Riposo'};
+  if(r&&r.stato==='lavorato')return{title:`${r.start} – ${r.end}`,sub:r.note||'Lavorato',hours:fmtHM(c.worked),type:'Lavorato'};
+  if(r)return{title:ASSENZE[r.tipo]||'Assenza',sub:r.note||'Assenza',hours:'—',type:ASSENZE[r.tipo]||'Assenza'};
+  if(st==='holiday')return{title:p.hol,sub:'Festivo',hours:'',type:'Festivo'};
+  if(st==='pending')return{title:'Da confermare',sub:`Previsto ${p.start} – ${p.end}`,hours:'—',type:'Da confermare'};
+  if(st==='planned'){const fut=ds>t;return{title:fut?'Programmato':'Non registrato',sub:`${p.start} – ${p.end}`,hours:'',type:fut?'Programmato':'Non registrato'};}
+  return{title:'Riposo',sub:'',hours:'',type:'Riposo'};
 }
 
 /* ================= UI: stato ================= */
@@ -587,7 +615,7 @@ function pendingPill(){const n=pendingList().length;
   if(!n)return `<span class="pill ok">${ICON.check}<span>Tutto confermato</span></span>`;
   return `<button class="pill warn" data-act="openPending">${ICON.clock}<span>${plural(n,'giorno','giorni')} da confermare</span></button>`;}
 function banners(){let h='';
-  if(!S.meta.setupSeen)h+=`<button class="banner subtle" data-act="goSetup">${ICON.set}<span class="bt"><b>Benvenuto in Ore</b><span>Per iniziare controlla il tuo orario settimanale.</span></span>${ICON.right}</button>`;
+  if(!S.meta.setupSeen)h+=`<button class="banner subtle" data-act="goSetup">${ICON.set}<span class="bt"><b>Benvenuto in OreLavoro</b><span>Per iniziare controlla il tuo orario settimanale.</span></span>${ICON.right}</button>`;
   for(const ym of closedMonths())h+=`<button class="banner" data-act="goMonth" data-ym="${ym}">${ICON.alert}<span class="bt"><b>Il mese di ${monthName(ym)} è concluso</b><span>Controlla le tue ore e conferma il mese.</span></span>${ICON.right}</button>`;
   if(backupDue())h+=`<div class="banner subtle">${ICON.shield}<span class="bt"><b>Ti consiglio un backup</b><span>${lastBackupText()}</span></span><button class="link" data-act="exportBackup">Esporta</button><button class="x" data-act="snoozeBackup" aria-label="Nascondi">×</button></div>`;
   return h;}
@@ -595,28 +623,31 @@ function gridHTML(ym){
   const[y,m]=ym.split('-').map(Number),lead=(new Date(y,m-1,1).getDay()+6)%7,t=todayStr();let h='';
   for(let i=0;i<lead;i++)h+='<span class="day blank"></span>';
   for(let d=1;d<=daysInMonth(ym);d++){
-    const ds=`${ym}-${pad(d)}`,st=dayStatus(ds),r=S.records[ds];let sub='';
-    if(r&&r.stato==='lavorato')sub=fmtHM(calcRec(r).worked);else if(r)sub=ABBR[r.tipo]||'ass.';else if(st==='holiday')sub='fest.';
-    h+=`<button class="day s-${st}${ds===t?' today':''}${S.overrides[ds]?' has-ov':''}" data-act="day" data-d="${ds}" aria-label="${cap(dayLabel(ds))}"><span class="n">${d}</span><span class="sub">${sub}</span></button>`;
+    const ds=`${ym}-${pad(d)}`,r=S.records[ds],fb=S.fuori[ds];let st=dayStatus(ds),sub='';
+    if(fb&&(st==='off'||st==='planned'||st==='holiday'))st='worked';
+    if(r&&r.stato==='lavorato')sub=fmtHM(calcRec(r).worked);else if(r)sub=ABBR[r.tipo]||'ass.';
+    else if(fb)sub='+'+fmtHM(fbMin(ds));else if(st==='holiday')sub='fest.';
+    h+=`<button class="day s-${st}${ds===t?' today':''}${S.overrides[ds]?' has-ov':''}" data-act="day" data-d="${ds}" aria-label="${cap(dayLabel(ds))}">${fb?'<i class="fbdot"></i>':''}<span class="n">${d}</span><span class="sub">${sub}</span></button>`;
   }
   return h;}
 function legend(){return `<div class="legend">${[['planned','Programmato'],['worked','Lavorato'],['pending','Da confermare'],['absent','Assenza'],['holiday','Festivo']]
-  .map(([k,l])=>`<span class="lg"><i class="sw s-${k}"></i>${l}</span>`).join('')}</div>`;}
+  .map(([k,l])=>`<span class="lg"><i class="sw s-${k}"></i>${l}</span>`).join('')}<span class="lg"><i class="fbdot-l"></i>Fuori busta</span></div>`;}
 function todayCard(){
-  const t=todayStr(),p=planFor(t),r=S.records[t];let big,sub;
-  if(r&&r.stato==='lavorato'){const c=calcRec(r);big=fmtHM(c.worked);sub=`Lavorate · ${r.start}–${r.end}${c.ot?` · straord. ${fmtHM(c.ot)}`:''}`;}
+  const t=todayStr(),p=planFor(t),r=S.records[t],fb=S.fuori[t];let big,sub;
+  if(r&&r.stato==='lavorato'){big=fmtHM(calcRec(r).worked);sub=`Lavorate · ${r.start}–${r.end}`;}
   else if(r){big=ASSENZE[r.tipo];sub='Assenza registrata';}
-  else if(p.working){big=fmtHM(spanMin(p.start,p.end,p.pause));sub=`Previste · ${p.start}–${p.end} · pausa ${fmtHM(p.pause)}`;}
+  else if(p.working){big=fmtHM(spanMin(p.start,p.end));sub=`Previste · ${p.start}–${p.end}`;}
   else{big=p.kind==='festivo'?'Festivo':'Riposo';sub=p.hol||'Nessun turno programmato';}
+  if(fb)sub+=` · +${fmtHM(fbMin(t))} fuori busta`;
   const m=monthTotals(ymOf(t));
   return `<section class="card today-card" data-act="day" data-d="${t}"><div class="tc-l"><div class="label">Oggi</div><div class="big num">${esc(big)}</div><div class="muted">${esc(sub)}</div></div>
   <div class="tc-r"><div class="label">${cap(monthName(ymOf(t)))}</div><div class="mid num" data-count="${m.worked}" data-key="cal-m" data-fmt="hm">${fmtHM(m.worked)}</div><div class="muted">ore lavorate</div></div></section>`;}
 function vCal(){const t=todayStr();
-  return head(cap(dayLabel(t)),'Calendario')+`<div class="status-row">${pendingPill()}</div>`+banners()+
+  return head(cap(dayLabel(t)),'OreLavoro')+`<div class="status-row">${pendingPill()}</div>`+banners()+todayCard()+
   `<section class="card cal"><div class="cal-head"><button class="icon-btn" data-act="calPrev" aria-label="Mese precedente">${ICON.left}</button><h2 id="calTitle">${ymLabel(ui.calYm)}</h2><button class="icon-btn" data-act="calNext" aria-label="Mese successivo">${ICON.right}</button></div>
   <div class="dow">${['L','M','M','G','V','S','D'].map(x=>`<span>${x}</span>`).join('')}</div>
   <div class="grid-wrap" id="gridWrap"><div class="grid" id="calGrid">${gridHTML(ui.calYm)}</div></div>
-  <button class="link today-link" data-act="calToday"${ui.calYm===ymOf(t)?' hidden':''}>Torna a oggi</button></section>`+legend()+todayCard();}
+  <button class="link today-link" data-act="calToday"${ui.calYm===ymOf(t)?' hidden':''}>Torna a oggi</button></section>`+legend();}
 function calShift(dir){
   ui.calYm=ymAdd(ui.calYm,dir);const g=$('#calGrid');if(!g)return render();
   $('#calTitle').textContent=ymLabel(ui.calYm);$('.today-link').hidden=ui.calYm===ymOf(todayStr());
@@ -630,43 +661,43 @@ function bindSwipe(){const w=$('#gridWrap');if(!w)return;let x0=null,y0=0;
 /* --- dettaglio giorno (bottom sheet) --- */
 const ST_LABEL={planned:'Programmato',worked:'Lavorato',absent:'Assenza',holiday:'Festivo',pending:'Da confermare',off:'Giorno libero'};
 function planText(p){
-  if(p.working)return `${p.start} – ${p.end} · pausa ${fmtHM(p.pause)} · ${fmtHM(spanMin(p.start,p.end,p.pause))} h${p.extra?' · turno extra':''}`;
+  if(p.working)return `${p.start} – ${p.end} · ${fmtHM(spanMin(p.start,p.end))} h`;
   if(p.kind==='festivo')return `Festività: ${esc(p.hol)}`;
   return p.kind==='riposo'?'Giorno non lavorativo':'Giorno libero';}
-function recText(r){const c=calcRec(r);
-  if(r.stato==='lavorato')return `<span>${r.start} – ${r.end} · pausa ${fmtHM(r.pause)}<small>${fmtHM(c.worked)} h lavorate${c.ot?` · straordinario ${fmtHM(c.ot)}`:''}${r.extra?' · turno extra':''}${r.note?` · ${esc(r.note)}`:''}</small></span>`;
+function recText(r){
+  if(r.stato==='lavorato')return `<span>${r.start} – ${r.end}<small>${fmtHM(calcRec(r).worked)} h lavorate${r.note?` · ${esc(r.note)}`:''}</small></span>`;
   return `<span>${ASSENZE[r.tipo]||'Assenza'}<small>${r.note?esc(r.note):'Assenza registrata'}</small></span>`;}
 function openDay(ds){
-  const p=planFor(ds),r=S.records[ds],ov=S.overrides[ds],st=dayStatus(ds),fin=isFinal(ymOf(ds)),t=todayStr();
-  let h=sheetHead(ST_LABEL[st],`${cap(dayLabel(ds))} ${ds.slice(0,4)}`);
+  const p=planFor(ds),r=S.records[ds],ov=S.overrides[ds],fb=S.fuori[ds],st=dayStatus(ds),fin=isFinal(ymOf(ds)),t=todayStr();
+  let h=sheetHead(fb&&!r&&st!=='pending'?'Lavorato fuori busta':ST_LABEL[st],`${cap(dayLabel(ds))} ${ds.slice(0,4)}`);
   h+=`<div class="group-title" style="margin-top:4px">Programma</div><div class="list"><div class="li"><span>${planText(p)}</span>${ov?'<span class="tag">Solo questo giorno</span>':''}</div></div>`;
   if(r){h+=`<div class="group-title">Registrato</div><div class="list"><div class="li">${recText(r)}${fin?'':`<button class="link" data-act="editRec" data-d="${ds}">Modifica</button>`}</div></div>`;}
   else if(st==='pending')h+=`<button class="btn primary block mt" data-act="confirmOne" data-d="${ds}">Conferma questo giorno</button>`;
   else if(ds<=t&&!fin&&ds>=S.settings.startDate)h+=`<button class="btn block mt" data-act="editRec" data-d="${ds}">Registra ore o assenza</button>`;
-  if(fin)h+=`<p class="caption">Il mese è definitivo: questo giorno è in sola lettura.</p>`;
+  if(fb)h+=`<div class="group-title">Fuori busta</div><div class="list"><div class="li"><span>${fb.start} – ${fb.end}<small>${fmtHM(fbMin(ds))} h${fb.note?` · ${esc(fb.note)}`:''}</small></span><button class="link" data-act="editFb" data-d="${ds}">Modifica</button></div></div>`;
+  else if(ds<=t)h+=`<button class="btn block mt" data-act="editFb" data-d="${ds}">${ICON.plus}Aggiungi ore fuori busta</button>`;
+  if(fb||ds<=t)h+=`<p class="caption">Le ore fuori busta compaiono solo nel calendario: non entrano nella tabella mensile né nei totali.</p>`;
+  if(fin)h+=`<p class="caption">Il mese è definitivo: le ore registrate sono in sola lettura.</p>`;
   else if(!r)h+=ovSection(ds,p,ov);
   openSheet(h,sh=>{if(ov)sh.dataset.ov=ov.tipo;});
 }
 function ovSection(ds,p,ov){const w=S.settings.weekly[parse(ds).getDay()];
-  const st=ov?.start||p.start||w.start,en=ov?.end||p.end||w.end,pa=ov?.pause??p.pause??w.pause;
+  const st=ov?.start||p.start||w.start,en=ov?.end||p.end||endFrom(st);
   return `<div class="group-title">Modifica solo questo giorno</div>
-  <div class="chips" data-name="ov" data-value="${ov?.tipo||''}">${[['orario','Orario diverso'],['extra','Turno extra'],['riposo','Non lavorativo'],['festivo','Festività locale']]
+  <div class="chips" data-name="ov" data-value="${ov?.tipo||''}">${[['orario','Orario diverso'],['riposo','Non lavorativo'],['festivo','Festività locale']]
     .map(([v,l])=>`<button data-act="seg" data-v="${v}" aria-pressed="${ov?.tipo===v}">${l}</button>`).join('')}</div>
-  <div class="ovf ovf-time">${workFields(st,en,pa,'ov')}</div>
+  <div class="ovf ovf-time">${workFields(st,en,'ov',true)}<p class="caption">Vale anche per lavorare in un giorno libero.</p></div>
   <div class="ovf ovf-hol"><div class="list mt"><div class="li"><input class="inp wide" name="ovName" maxlength="60" placeholder="Nome (es. Santo patrono)" value="${esc(ov?.nome||'')}"></div></div></div>
   <div class="ovf ovf-any"><button class="btn primary block mt" data-act="ovSave" data-d="${ds}">Salva modifica</button></div>
   ${ov?`<button class="btn block mt danger" data-act="ovReset" data-d="${ds}">Ripristina orario ricorrente</button>`:''}
   <p class="caption">L'orario settimanale ricorrente non viene modificato.</p>`;}
 
 /* --- campi orario condivisi --- */
-function workFields(s,e,p,prefix=''){const n=k=>prefix?prefix+cap(k):k;
-  return `<div class="list mt"><div class="li"><span>Ingresso</span><input type="time" name="${n('start')}" value="${s}"></div>
-  <div class="li"><span>Uscita</span><input type="time" name="${n('end')}" value="${e}"></div>
-  <div class="li"><span>Pausa</span>${stepper(n('pause'),p,0,240,15)}</div></div>`;}
-const calcBox=(l1='Ore lavorate',l2='Straordinario')=>`<div class="calc"><span>${l1}<b class="num" data-c="w">0:00</b></span><span>${l2}<b class="num" data-c="o">0:00</b></span></div>`;
-function updCalc(root){const f=readForm(root);const w=spanMin(f.start,f.end,f.pause);
-  const extra=f.extra===true||root.dataset.extra==='1';const ot=extra?w:Math.max(0,w-S.settings.contractMin);
-  const a=root.querySelector('[data-c=w]'),b=root.querySelector('[data-c=o]');if(a)a.textContent=fmtHM(w);if(b)b.textContent=fmtHM(ot);}
+function workFields(s,e,prefix='',auto=false){const n=k=>prefix?prefix+cap(k):k;
+  return `<div class="list mt"><div class="li"><span>Ingresso</span><input type="time" name="${n('start')}" value="${s}"${auto?' data-auto="1"':''}></div>
+  <div class="li"><span>Uscita</span><input type="time" name="${n('end')}" value="${e}" data-end="1"></div></div>`;}
+const calcBox=(l='Ore lavorate')=>`<div class="calc"><span>${l}</span><b class="num" data-c="w">0:00</b></div>`;
+function updCalc(root){const f=readForm(root);const a=root.querySelector('[data-c=w]');if(a)a.textContent=fmtHM(spanMin(f.start,f.end));}
 const absChips=t=>`<div class="chips" data-name="tipo" data-value="${t}">${Object.entries(ASSENZE).map(([k,l])=>`<button data-act="seg" data-v="${k}" aria-pressed="${k===t}">${l}</button>`).join('')}</div>`;
 function readForm(root){const o={};
   root.querySelectorAll('[data-name]').forEach(g=>{o[g.dataset.name]=g.dataset.value;});
@@ -677,17 +708,27 @@ function readForm(root){const o={};
 /* --- editor registrazione --- */
 function openEditor(ds){
   const r=S.records[ds],p=planFor(ds),w=S.settings.weekly[parse(ds).getDay()];
-  const stato=r?.stato||'lavorato',start=r?.start||p.start||w.start,end=r?.end||p.end||w.end,pause=r?.pause??p.pause??w.pause;
-  const extra=r?!!r.extra:(!p.working||!!p.extra),tipo=r?.tipo||'ferie';
+  const stato=r?.stato||'lavorato',start=r?.start||p.start||w.start,end=r?.end||p.end||endFrom(start),tipo=r?.tipo||'ferie';
   const h=`${sheetHead(r?'Modifica registrazione':'Nuova registrazione',`${cap(dayLabel(ds))} ${ds.slice(0,4)}`)}
   <div class="seg" data-name="stato" data-value="${stato}"><button data-act="seg" data-v="lavorato" aria-pressed="${stato==='lavorato'}">Lavorato</button><button data-act="seg" data-v="assenza" aria-pressed="${stato==='assenza'}">Assenza</button></div>
-  <div class="f-work">${workFields(start,end,pause)}
-    <div class="list mt"><div class="li"><span>Turno extra<small>Tutte le ore contano come straordinario</small></span><label class="switch"><input type="checkbox" name="extra"${extra?' checked':''}><span></span></label></div></div>${calcBox()}</div>
+  <div class="f-work">${workFields(start,end)}${calcBox()}</div>
   <div class="f-abs mt">${absChips(tipo)}</div>
   <div class="group-title">Note</div><textarea name="note" rows="2" maxlength="200" placeholder="Facoltative">${esc(r?.note||'')}</textarea>
   <div class="btn-row"><button class="btn primary" data-act="saveRec" data-d="${ds}">Salva</button></div>
   ${r?`<button class="btn block danger mt" data-act="delRec" data-d="${ds}">${ICON.trash}Elimina registrazione</button>`:''}`;
   openSheet(h,sh=>{sh.dataset.stato=stato;sh.addEventListener('input',()=>updCalc(sh));updCalc(sh);});
+}
+/* --- editor fuori busta --- */
+function openFb(ds){
+  const f=S.fuori[ds],r=S.records[ds];
+  const start=f?.start||(r&&r.stato==='lavorato'?r.end:'18:00'),end=f?.end||fromMin(((toMin(start)||0)+120)%1440);
+  openSheet(`${sheetHead('Ore fuori busta',`${cap(dayLabel(ds))} ${ds.slice(0,4)}`)}
+  <p class="muted" style="margin:-6px 4px 0">Compaiono nel calendario come giorno lavorato, ma non nella tabella mensile né nei totali.</p>
+  ${workFields(start,end)}${calcBox('Ore fuori busta')}
+  <div class="group-title">Note</div><textarea name="note" rows="2" maxlength="200" placeholder="Facoltative">${esc(f?.note||'')}</textarea>
+  <div class="btn-row"><button class="btn primary" data-act="saveFb" data-d="${ds}">Salva</button></div>
+  ${f?`<button class="btn block danger mt" data-act="delFb" data-d="${ds}">${ICON.trash}Elimina ore fuori busta</button>`:''}`,
+  sh=>{sh.addEventListener('input',()=>updCalc(sh));updCalc(sh);});
 }
 
 /* ================= Conferma presenze ================= */
@@ -704,7 +745,7 @@ function cfShow(){const ds=cf.list[0],n=cf.list.length;
 function cfAsk(ds){const p=planFor(ds),t=todayStr();
   return `<div class="cf-date">${ICON.cal}<span>${cap(dayLabel(ds))}${ds===t?' · oggi':''}</span></div>
   <h2 class="cf-q">Sei andato al lavoro ${ds===t?'oggi':dayLabel(ds)}?</h2>
-  <p class="muted">Previsto ${p.start}–${p.end} · pausa ${fmtHM(p.pause)}${p.extra?' · turno extra':''}</p>
+  <p class="muted">Previsto ${p.start}–${p.end} · ${fmtHM(spanMin(p.start,p.end))} h</p>
   <div class="cf-btns"><button class="btn big" data-act="cfNo">No</button><button class="btn big primary" data-act="cfYes">Sì</button></div>`;}
 function cfSwap(card,html){card.innerHTML=html;if(!reduced())card.animate([{opacity:0,transform:'translateY(6px)'},{opacity:1,transform:'none'}],{duration:220,easing:'cubic-bezier(.2,.8,.2,1)'});}
 function cfNext(card){
@@ -733,16 +774,17 @@ function vMese(){const ym=ui.mesYm,cur=ymOf(todayStr());
   const nav=`<div class="mnav"><button class="link" data-act="mesPrev">${ICON.left}${cap(monthName(ymAdd(ym,-1)))}</button>${ym<cur?`<button class="link" data-act="mesNext">${cap(monthName(ymAdd(ym,1)))}${ICON.right}</button>`:''}</div>`;
   const anim=badgeAnim===ym;badgeAnim=null;
   return head((ym===cur?'Mese corrente':'Mese')+statusBadge(ym,anim),ymLabel(ym))+nav+monthBody(ym,'mes');}
-function monthBody(ym,ctx){
-  const fin=isFinal(ym),t=totalsFor(ym),k=ctx+ym,cur=ymOf(todayStr());
+function totalsCard(t,k,label='Ore lavorate'){
   const absC=Object.entries(t.abs||{}).map(([a,n])=>`<span>${ASSENZE[a]||a} · ${n}</span>`).join('');
-  let h=`<section class="card totals"><div class="label">Ore lavorate</div>
+  return `<section class="card totals"><div class="label">${label}</div>
    <div class="hero num"><span data-count="${t.worked}" data-key="${k}w" data-fmt="hm">${fmtHM(t.worked)}</span><small>h</small></div>
-   <div class="tiles"><div class="tile"><span class="v num" data-count="${t.ord}" data-key="${k}o" data-fmt="hm">${fmtHM(t.ord)}</span><span class="l">Ordinarie</span></div>
-   <div class="tile ot"><span class="v num" data-count="${t.ot}" data-key="${k}x" data-fmt="hm">${fmtHM(t.ot)}</span><span class="l">Straordinari</span></div>
-   <div class="tile"><span class="v num" data-count="${t.days}" data-key="${k}d">${t.days}</span><span class="l">Giorni lavorati</span></div>
-   <div class="tile"><span class="v num" data-count="${t.absDays}" data-key="${k}a">${t.absDays}</span><span class="l">Giorni di assenza</span></div></div>
-   ${absC?`<div class="abs-chips">${absC}</div>`:''}</section>`;
+   <div class="tiles tiles3"><div class="tile"><span class="v num" data-count="${t.days}" data-key="${k}d">${t.days}</span><span class="l">Giorni lavorati</span></div>
+   <div class="tile"><span class="v num" data-count="${t.absDays}" data-key="${k}a">${t.absDays}</span><span class="l">Assenze</span></div>
+   <div class="tile"><span class="v num" data-count="${avgDay(t)}" data-key="${k}m" data-fmt="hm">${fmtHM(avgDay(t))}</span><span class="l">Media al giorno</span></div></div>
+   ${absC?`<div class="abs-chips">${absC}</div>`:''}</section>`;}
+function monthBody(ym,ctx){
+  const fin=isFinal(ym),t=totalsFor(ym),cur=ymOf(todayStr());
+  let h=totalsCard(t,ctx+ym);
   if(!fin&&ctx==='mes'){
     if(ym<cur){const n=pendingList().filter(d=>ymOf(d)===ym).length;
       h+=n?`<section class="card closebox"><p>Prima di chiudere ${monthName(ym)} conferma ${n===1?'il giorno ancora':`i ${n} giorni ancora`} in sospeso.</p><button class="btn primary block" data-act="openPendingMonth" data-ym="${ym}">Conferma ${plural(n,'giorno','giorni')}</button></section>`
@@ -757,14 +799,17 @@ function rowHTML(x){const i=rowInfo(x),d=parse(x.ds);
   const cls=x.st==='pending'?' pend':(x.st==='planned'||x.st==='holiday')?' dim':'';
   return `<button class="mrow${cls}" data-act="row" data-d="${x.ds}"><i class="bar s-${x.st}"></i><span class="mdate"><b class="num">${d.getDate()}</b><small>${GG[d.getDay()]}</small></span>
   <span class="mmain"><span class="mt-t">${esc(i.title)}</span><span class="ms">${esc(i.sub)}</span></span>
-  <span class="mright"><b class="num">${i.hours}</b>${i.ot?`<small class="ot num">+${fmtHM(i.ot)}</small>`:''}</span></button>`;}
+  <span class="mright"><b class="num">${i.hours}</b></span></button>`;}
 function rowDetail(ds){const r=S.records[ds],p=planFor(ds),c=calcRec(r);
   let h=sheetHead('Sola lettura',`${cap(dayLabel(ds))} ${ds.slice(0,4)}`)+'<div class="list">';
-  if(r&&r.stato==='lavorato')h+=[['Ingresso',r.start],['Uscita',r.end],['Pausa',fmtHM(r.pause)],['Ore lavorate',fmtHM(c.worked)],['Ordinarie',fmtHM(c.ord)],['Straordinario',fmtHM(c.ot)]].map(([a,b])=>`<div class="li"><span>${a}</span><b class="num">${b}</b></div>`).join('');
+  if(r&&r.stato==='lavorato')h+=[['Ingresso',r.start],['Uscita',r.end],['Ore lavorate',fmtHM(c.worked)]].map(([a,b])=>`<div class="li"><span>${a}</span><b class="num">${b}</b></div>`).join('');
   else if(r)h+=`<div class="li"><span>Assenza</span><b>${ASSENZE[r.tipo]}</b></div>`;
   else h+=`<div class="li"><span>${planText(p)}</span></div><div class="li"><span>Nessuna registrazione</span></div>`;
   if(r?.note)h+=`<div class="li"><span>Note<small>${esc(r.note)}</small></span></div>`;
-  openSheet(h+'</div>');}
+  h+='</div>';
+  const fb=S.fuori[ds];
+  if(fb)h+=`<div class="group-title">Fuori busta</div><div class="list"><div class="li"><span>${fb.start} – ${fb.end}<small>${fmtHM(fbMin(ds))} h</small></span><button class="link" data-act="editFb" data-d="${ds}">Modifica</button></div></div>`;
+  openSheet(h);}
 
 /* ================= Vista: Archivio ================= */
 function vArch(){
@@ -778,44 +823,44 @@ function vArch(){
     h+=`<div class="yr-head"><h2>${y}</h2><button class="link" data-act="yearSum" data-y="${y}">Riepilogo annuale${ICON.right}</button></div>`;
     if(ms.length)h+=`<div class="arch-grid">${ms.map(m=>{const t=totalsFor(m);
       return `<button class="card acard" data-act="archOpen" data-ym="${m}"><span class="ac-top"><span>${cap(monthName(m))}</span><span class="badge def sm">DEF.</span></span>
-      <span class="ac-h num">${fmtHM(t.worked)}<small> h</small></span><span class="ac-meta">${plural(t.days,'giorno','giorni')} · straord. ${fmtHM(t.ot)}</span><span class="ac-meta">${t.absDays?plural(t.absDays,'assenza','assenze'):'Nessuna assenza'}</span></button>`;}).join('')}</div>`;
+      <span class="ac-h num">${fmtHM(t.worked)}<small> h</small></span><span class="ac-meta">${plural(t.days,'giorno lavorato','giorni lavorati')}</span><span class="ac-meta">${t.absDays?plural(t.absDays,'assenza','assenze'):'Nessuna assenza'}</span></button>`;}).join('')}</div>`;
     else h+=`<p class="caption" style="margin:0 4px">Nessun mese confermato in questo anno.</p>`;}
   return h;}
 function yearData(y){const out=[];for(let m=1;m<=12;m++){const ym=`${y}-${pad(m)}`;
   if(isFinal(ym)||Object.keys(S.records).some(d=>d.startsWith(ym)))out.push({ym,fin:isFinal(ym),t:totalsFor(ym)});}return out;}
-function yearSum(rows){const s={worked:0,ord:0,ot:0,days:0,abs:{},absDays:0};
-  for(const{t}of rows){s.worked+=t.worked;s.ord+=t.ord;s.ot+=t.ot;s.days+=t.days;s.absDays+=t.absDays;for(const[k,v]of Object.entries(t.abs||{}))s.abs[k]=(s.abs[k]||0)+v;}return s;}
+function yearSum(rows){const s={worked:0,days:0,abs:{},absDays:0};
+  for(const{t}of rows){s.worked+=t.worked;s.days+=t.days;s.absDays+=t.absDays;for(const[k,v]of Object.entries(t.abs||{}))s.abs[k]=(s.abs[k]||0)+v;}return s;}
+const absText=abs=>Object.entries(abs||{}).map(([k,n])=>`${ASSENZE[k]||k} ${n}`).join(' · ');
 function yearBody(y){const rows=yearData(y),s=yearSum(rows);
   if(!rows.length)return `<div class="empty">${ICON.table}<h2>Nessun dato</h2><p>Non ci sono ore registrate nel ${y}.</p></div>`;
-  const cols=Object.keys(ASSENZE);
-  return `<section class="card totals"><div class="label">Ore lavorate nel ${y}</div><div class="hero num"><span data-count="${s.worked}" data-key="y${y}" data-fmt="hm">${fmtHM(s.worked)}</span><small>h</small></div>
-  <div class="tiles"><div class="tile"><span class="v num">${fmtHM(s.ord)}</span><span class="l">Ordinarie</span></div><div class="tile ot"><span class="v num">${fmtHM(s.ot)}</span><span class="l">Straordinari</span></div>
-  <div class="tile"><span class="v num">${s.days}</span><span class="l">Giorni lavorati</span></div><div class="tile"><span class="v num">${s.absDays}</span><span class="l">Giorni di assenza</span></div></div></section>
-  <div class="group-title">Per mese</div><section class="card" style="padding:4px 0"><div class="tbl-wrap"><table class="yt"><thead><tr><th>Mese</th><th>Ore</th><th>Ordin.</th><th>Straord.</th><th>Giorni</th>${cols.map(c=>`<th>${ASSENZE[c]}</th>`).join('')}</tr></thead>
-  <tbody>${rows.map(({ym,fin,t})=>`<tr><td>${cap(monthName(ym))}${fin?'':'<span class="p">P</span>'}</td><td>${fmtHM(t.worked)}</td><td>${fmtHM(t.ord)}</td><td>${fmtHM(t.ot)}</td><td>${t.days}</td>${cols.map(c=>`<td>${t.abs?.[c]||'–'}</td>`).join('')}</tr>`).join('')}</tbody>
-  <tfoot><tr><td>Totale</td><td>${fmtHM(s.worked)}</td><td>${fmtHM(s.ord)}</td><td>${fmtHM(s.ot)}</td><td>${s.days}</td>${cols.map(c=>`<td>${s.abs[c]||'–'}</td>`).join('')}</tr></tfoot></table></div></section>
-  <p class="caption">P = mese provvisorio, non ancora confermato.</p>
+  const line=(t)=>[plural(t.days,'giorno','giorni'),absText(t.abs)].filter(Boolean).join(' · ');
+  return totalsCard(s,'y'+y,`Ore lavorate nel ${y}`)+
+  `<div class="group-title">Per mese</div><section class="card rows">${rows.map(({ym,fin,t})=>`<button class="yrow" data-act="yrOpen" data-ym="${ym}">
+    <span class="yr-l"><span class="yr-m">${cap(monthName(ym))}${fin?'':'<span class="badge prov sm">PROVVISORIA</span>'}</span><span class="ms">${line(t)}</span></span>
+    <b class="num yr-h">${fmtHM(t.worked)}</b>${ICON.right}</button>`).join('')}
+    <div class="yrow tot"><span class="yr-l"><span class="yr-m">Totale ${y}</span><span class="ms">${line(s)}</span></span><b class="num yr-h">${fmtHM(s.worked)}</b></div></section>
   <div class="group-title">Esporta</div><div class="exports"><button class="btn" data-act="pdfYear" data-y="${y}">${ICON.print}PDF</button><button class="btn" data-act="csvYear" data-y="${y}">${ICON.table}CSV (Excel)</button></div>`;}
 
 /* ================= Vista: Impostazioni ================= */
 function vImp(){const s=S.settings,y=new Date().getFullYear();
   const days=[1,2,3,4,5,6,0].map(i=>{const w=s.weekly[i];
-    return `<div class="li"><button class="li-main" data-act="editDay" data-i="${i}"><span>${cap(GIORNI[i])}</span><span class="muted num">${w.on?`${w.start}–${w.end} · pausa ${fmtHM(w.pause)}`:'Riposo'}</span></button><label class="switch"><input type="checkbox" data-change="toggleDay" data-i="${i}"${w.on?' checked':''} aria-label="${cap(GIORNI[i])} lavorativo"><span></span></label></div>`;}).join('');
+    return `<div class="li"><button class="li-main" data-act="editDay" data-i="${i}"><span>${cap(GIORNI[i])}</span><span class="muted num">${w.on?`${w.start}–${w.end}`:'Riposo'}</span></button><label class="switch"><input type="checkbox" data-change="toggleDay" data-i="${i}"${w.on?' checked':''} aria-label="${cap(GIORNI[i])} lavorativo"><span></span></label></div>`;}).join('');
   const naz=Object.entries(nationalHolidays(y)).sort().map(([d,n])=>`<div class="li"><span>${esc(n)}</span><span class="muted num">${parse(d).getDate()} ${MESI[parse(d).getMonth()]}</span></div>`).join('');
   const cust=s.customHolidays.map((h,i)=>{const[m,d]=h.md.split('-').map(Number);return `<div class="li"><span>${esc(h.name)}<small>${d} ${MESI[m-1]} · ogni anno</small></span><button class="link" data-act="delHol" data-i="${i}" aria-label="Elimina">${ICON.trash}</button></div>`;}).join('');
-  return head('Ore lavoro','Impostazioni')+
-  `<div class="group-title">Orario settimanale</div><div class="list">${days}</div><p class="caption">Tocca un giorno per cambiare orari e pausa. Per modificare una sola data usa il calendario.</p>
-  <div class="group-title">Contratto</div><div class="list"><div class="li"><span>Ore giornaliere<small>Oltre questa soglia è straordinario</small></span>${stepper('contract',s.contractMin,60,720,15,'contract')}</div>
-  <div class="li"><span>Inizio conteggio<small>Conferme richieste da questa data</small></span><input type="date" data-change="startDate" value="${s.startDate}"></div></div>
+  return head('OreLavoro','Impostazioni')+
+  `<div class="group-title">Ore giornaliere</div><div class="list"><div class="li"><span>Ore al giorno<small>Calcola l'uscita</small></span>${stepper('daily',s.dailyMin,60,840,15,'daily')}</div></div>
+  <p class="caption">Esempio: ingresso alle 9:00 con ${fmtHM(s.dailyMin)} ore → uscita alle ${endFrom('09:00')}. Cambiando questo valore si aggiornano le uscite di tutti i giorni lavorativi.</p>
+  <div class="group-title">Orario settimanale</div><div class="list">${days}</div><p class="caption">Tocca un giorno per cambiare l'orario. Per modificare una sola data usa il calendario.</p>
+  <div class="group-title">Conteggio</div><div class="list"><div class="li"><span>Inizio conteggio<small>Conferme richieste da questa data</small></span><input type="date" data-change="startDate" value="${s.startDate}"></div></div>
   <div class="group-title">Festività personalizzate</div><div class="list">${cust}<div class="li"><button class="li-main link" data-act="addHol" style="justify-content:flex-start;padding:0">${ICON.plus}Aggiungi festività (es. santo patrono)</button></div></div>
   <details class="mt"><summary class="caption" style="cursor:pointer;min-height:32px">Festività nazionali ${y} (calcolate automaticamente)</summary><div class="list mt">${naz}</div></details>
   <div class="group-title">Backup</div><div class="list"><div class="li"><span>${lastBackupText()}</span></div>
   <div class="li"><button class="li-main link" data-act="exportBackup" style="padding:0;justify-content:flex-start">${ICON.down}Esporta backup</button></div>
   <div class="li"><button class="li-main link" data-act="importPick" style="padding:0;justify-content:flex-start">${ICON.up}Importa backup</button></div></div>
-  <p class="caption">I dati sono salvati solo su questo dispositivo, nel browser. Se cancelli i dati di Safari o disinstalli l'app vanno persi: esporta un backup ogni tanto e conservalo (es. in File o iCloud Drive).</p>
+  <p class="caption">I dati sono salvati solo su questo dispositivo. Se cancelli i dati di Safari o rimuovi l'app dalla schermata Home vanno persi: esporta un backup ogni tanto e conservalo (es. in File o iCloud Drive).</p>
   <div class="group-title">Dati</div><div class="list">
   <div class="li"><button class="li-main link" data-act="wipe" style="padding:0;justify-content:flex-start;color:var(--danger)">Cancella tutti i dati</button></div></div>
-  <p class="caption" style="text-align:center;margin-top:24px">Ore · versione 1.0<br>Nessun server, nessun account: tutto resta sul tuo telefono.</p>`;}
+  <p class="caption" style="text-align:center;margin-top:24px">OreLavoro · versione 1.1<br>Nessun server, nessun account: tutto resta sul tuo telefono.</p>`;}
 
 /* ================= Sheet e dialoghi ================= */
 function openSheet(html,onMount,opts={}){
@@ -839,33 +884,33 @@ const csvCell=v=>{v=String(v??'');return /[";\n]/.test(v)?`"${v.replace(/"/g,'""
 const toCSV=rows=>'﻿'+rows.map(r=>r.map(csvCell).join(';')).join('\r\n');
 function csvMonth(ym){const t=totalsFor(ym);
   const rows=[[`Riepilogo ore ${ymLabel(ym)}`,isFinal(ym)?'DEFINITIVA':'PROVVISORIA'],[],
-    ['Data','Giorno','Ingresso','Uscita','Pausa','Ore lavorate','Ore lavorate (decimali)','Straordinario','Straordinario (decimali)','Tipo','Note']];
+    ['Data','Giorno','Ingresso','Uscita','Ore lavorate','Ore lavorate (decimali)','Tipo','Note']];
   for(const x of monthRows(ym,true)){const r=x.r,i=rowInfo(x),w=r?.stato==='lavorato';
-    rows.push([fmtIt(x.ds),cap(GIORNI[parse(x.ds).getDay()]),w?r.start:'',w?r.end:'',w?fmtHM(r.pause):'',w?fmtHM(x.c.worked):'',w?fmtDec(x.c.worked):'',w?fmtHM(x.c.ot):'',w?fmtDec(x.c.ot):'',i.type,r?.note||(x.st==='holiday'?x.p.hol:'')]);}
-  rows.push([],['Totali'],['Ore lavorate',fmtHM(t.worked),fmtDec(t.worked)],['Ore ordinarie',fmtHM(t.ord),fmtDec(t.ord)],['Straordinari',fmtHM(t.ot),fmtDec(t.ot)],['Giorni lavorati',t.days]);
+    rows.push([fmtIt(x.ds),cap(GIORNI[parse(x.ds).getDay()]),w?r.start:'',w?r.end:'',w?fmtHM(x.c.worked):'',w?fmtDec(x.c.worked):'',i.type,r?.note||(x.st==='holiday'?x.p.hol:'')]);}
+  rows.push([],['Totali'],['Ore lavorate',fmtHM(t.worked),fmtDec(t.worked)],['Giorni lavorati',t.days],['Giorni di assenza',t.absDays]);
   for(const[k,l]of Object.entries(ASSENZE))if(t.abs?.[k])rows.push([`Assenze: ${l}`,t.abs[k]]);
   download(`ore-${ym}.csv`,toCSV(rows),'text/csv;charset=utf-8');}
 function csvYear(y){const rows=yearData(y),s=yearSum(rows),cols=Object.keys(ASSENZE);
-  const out=[[`Riepilogo annuale ${y}`],[],['Mese','Stato','Ore lavorate','Ore (decimali)','Ordinarie','Straordinari','Straordinari (decimali)','Giorni lavorati',...cols.map(c=>ASSENZE[c])]];
-  for(const{ym,fin,t}of rows)out.push([cap(monthName(ym)),fin?'Definitiva':'Provvisoria',fmtHM(t.worked),fmtDec(t.worked),fmtHM(t.ord),fmtHM(t.ot),fmtDec(t.ot),t.days,...cols.map(c=>t.abs?.[c]||0)]);
-  out.push(['Totale','',fmtHM(s.worked),fmtDec(s.worked),fmtHM(s.ord),fmtHM(s.ot),fmtDec(s.ot),s.days,...cols.map(c=>s.abs[c]||0)]);
+  const out=[[`Riepilogo annuale ${y}`],[],['Mese','Stato','Ore lavorate','Ore (decimali)','Giorni lavorati',...cols.map(c=>ASSENZE[c])]];
+  for(const{ym,fin,t}of rows)out.push([cap(monthName(ym)),fin?'Definitiva':'Provvisoria',fmtHM(t.worked),fmtDec(t.worked),t.days,...cols.map(c=>t.abs?.[c]||0)]);
+  out.push(['Totale','',fmtHM(s.worked),fmtDec(s.worked),s.days,...cols.map(c=>s.abs[c]||0)]);
   download(`ore-riepilogo-${y}.csv`,toCSV(out),'text/csv;charset=utf-8');}
 function printMonth(ym){const fin=isFinal(ym),t=totalsFor(ym);
   const body=monthRows(ym,true).map(x=>{const r=x.r,i=rowInfo(x),w=r?.stato==='lavorato',d=parse(x.ds);
-    return `<tr class="${!r&&x.st!=='pending'?'dim':''}"><td>${fmtIt(x.ds)}</td><td>${cap(GIORNI[d.getDay()])}</td><td>${w?r.start:''}</td><td>${w?r.end:''}</td><td class="r">${w?fmtHM(r.pause):''}</td><td class="r">${w?fmtHM(x.c.worked):''}</td><td class="r">${w&&x.c.ot?fmtHM(x.c.ot):''}</td><td>${r&&!w?esc(i.type):(w?'':esc(i.type==='Riposo'?'':i.type))}</td><td>${esc(r?.note||(x.st==='holiday'?x.p.hol:''))}</td></tr>`;}).join('');
-  const abs=Object.entries(t.abs||{}).map(([k,n])=>`${ASSENZE[k]}: ${n}`).join(' · ');
+    return `<tr class="${!r&&x.st!=='pending'?'dim':''}"><td>${fmtIt(x.ds)}</td><td>${cap(GIORNI[d.getDay()])}</td><td>${w?r.start:''}</td><td>${w?r.end:''}</td><td class="r">${w?fmtHM(x.c.worked):''}</td><td>${w||i.type==='Riposo'?'':esc(i.type)}</td><td>${esc(r?.note||(x.st==='holiday'?x.p.hol:''))}</td></tr>`;}).join('');
+  const abs=absText(t.abs);
   $('#print-area').innerHTML=`<div class="p-head"><div><h1>Riepilogo ore lavorate</h1><div class="sub">${ymLabel(ym)}</div></div><div class="p-badge ${fin?'':'prov'}">${fin?'DEFINITIVA':'PROVVISORIA'}</div></div>
-  <table><thead><tr><th>Data</th><th>Giorno</th><th>Ingresso</th><th>Uscita</th><th class="r">Pausa</th><th class="r">Ore</th><th class="r">Straord.</th><th>Assenza / tipo</th><th>Note</th></tr></thead><tbody>${body}</tbody></table>
-  <div class="p-tot"><div><span>Ore lavorate</span><b>${fmtHM(t.worked)}</b></div><div><span>Ordinarie</span><b>${fmtHM(t.ord)}</b></div><div><span>Straordinari</span><b>${fmtHM(t.ot)}</b></div><div><span>Giorni lavorati</span><b>${t.days}</b></div><div><span>Giorni di assenza</span><b>${t.absDays}</b></div></div>
+  <table><thead><tr><th>Data</th><th>Giorno</th><th>Ingresso</th><th>Uscita</th><th class="r">Ore</th><th>Assenza / tipo</th><th>Note</th></tr></thead><tbody>${body}</tbody></table>
+  <div class="p-tot"><div><span>Ore lavorate</span><b>${fmtHM(t.worked)}</b></div><div><span>Giorni lavorati</span><b>${t.days}</b></div><div><span>Giorni di assenza</span><b>${t.absDays}</b></div></div>
   ${abs?`<div class="p-abs">Assenze per tipo: ${abs}</div>`:''}
   <div class="p-sign"><div>Firma del dipendente</div><div>Firma del responsabile</div></div>
-  <div class="p-foot"><span>Ore lavorate = uscita − ingresso − pausa · Ore contrattuali giornaliere: ${fmtHM(S.settings.contractMin)}</span><span>${fin?`Confermato il ${new Date(S.months[ym].chiusoIl).toLocaleDateString('it-IT')}`:`Generato il ${new Date().toLocaleDateString('it-IT')}`}</span></div>`;
+  <div class="p-foot"><span>Ore lavorate = uscita − ingresso</span><span>${fin?`Confermato il ${new Date(S.months[ym].chiusoIl).toLocaleDateString('it-IT')}`:`Generato il ${new Date().toLocaleDateString('it-IT')}`}</span></div>`;
   setTimeout(()=>window.print(),60);}
 function printYear(y){const rows=yearData(y),s=yearSum(rows),cols=Object.keys(ASSENZE);
   $('#print-area').innerHTML=`<div class="p-head"><div><h1>Riepilogo annuale</h1><div class="sub">${y}</div></div></div>
-  <table><thead><tr><th>Mese</th><th>Stato</th><th class="r">Ore</th><th class="r">Ordinarie</th><th class="r">Straord.</th><th class="r">Giorni</th>${cols.map(c=>`<th class="r">${ASSENZE[c]}</th>`).join('')}</tr></thead>
-  <tbody>${rows.map(({ym,fin,t})=>`<tr><td>${cap(monthName(ym))}</td><td>${fin?'Definitiva':'Provvisoria'}</td><td class="r">${fmtHM(t.worked)}</td><td class="r">${fmtHM(t.ord)}</td><td class="r">${fmtHM(t.ot)}</td><td class="r">${t.days}</td>${cols.map(c=>`<td class="r">${t.abs?.[c]||''}</td>`).join('')}</tr>`).join('')}</tbody>
-  <tfoot><tr><td>Totale</td><td></td><td class="r">${fmtHM(s.worked)}</td><td class="r">${fmtHM(s.ord)}</td><td class="r">${fmtHM(s.ot)}</td><td class="r">${s.days}</td>${cols.map(c=>`<td class="r">${s.abs[c]||''}</td>`).join('')}</tr></tfoot></table>
+  <table><thead><tr><th>Mese</th><th>Stato</th><th class="r">Ore</th><th class="r">Giorni</th>${cols.map(c=>`<th class="r">${ASSENZE[c]}</th>`).join('')}</tr></thead>
+  <tbody>${rows.map(({ym,fin,t})=>`<tr><td>${cap(monthName(ym))}</td><td>${fin?'Definitiva':'Provvisoria'}</td><td class="r">${fmtHM(t.worked)}</td><td class="r">${t.days}</td>${cols.map(c=>`<td class="r">${t.abs?.[c]||''}</td>`).join('')}</tr>`).join('')}</tbody>
+  <tfoot><tr><td>Totale</td><td></td><td class="r">${fmtHM(s.worked)}</td><td class="r">${s.days}</td>${cols.map(c=>`<td class="r">${s.abs[c]||''}</td>`).join('')}</tr></tfoot></table>
   <div class="p-foot"><span>Generato il ${new Date().toLocaleDateString('it-IT')}</span></div>`;
   setTimeout(()=>window.print(),60);}
 
@@ -902,24 +947,31 @@ const A={
     const host=el.closest('.sheet,.cf-card');if(host){host.dataset[g.dataset.name]=el.dataset.v;host.dispatchEvent(new Event('input',{bubbles:true}));}},
   step:el=>{const s=el.closest('.stepper');let v=+s.dataset.val+ +el.dataset.delta;v=Math.max(+s.dataset.min,Math.min(+s.dataset.max,v));
     s.dataset.val=v;s.querySelector('output').textContent=fmtHM(v);
-    if(s.dataset.save==='contract'){S.settings.contractMin=v;save();}
+    if(s.dataset.save==='daily'){S.settings.dailyMin=v;for(const w of Object.values(S.settings.weekly))if(w.on)w.end=endFrom(w.start);save();
+      clearTimeout(A._dt);A._dt=setTimeout(()=>{render();toast('Uscite aggiornate in base alle ore giornaliere');},700);}
     s.dispatchEvent(new Event('input',{bubbles:true}));},
   ovSave:el=>{const ds=el.dataset.d,f=readForm(el.closest('.sheet')),tipo=f.ov;if(!tipo)return;const o={tipo};
-    if(tipo==='orario'||tipo==='extra'){if(spanMin(f.ovStart,f.ovEnd,f.ovPause)<=0)return toast('Controlla gli orari');Object.assign(o,{start:f.ovStart,end:f.ovEnd,pause:f.ovPause});}
+    if(tipo==='orario'){if(spanMin(f.ovStart,f.ovEnd)<=0)return toast('Controlla gli orari');Object.assign(o,{start:f.ovStart,end:f.ovEnd});}
     if(tipo==='festivo')o.nome=(f.ovName||'').trim()||'Festività locale';
     S.overrides[ds]=o;save();closeSheet();render();toast('Giorno aggiornato');},
   ovReset:el=>{delete S.overrides[el.dataset.d];save();closeSheet();render();toast('Orario ricorrente ripristinato');},
   editRec:el=>openEditor(el.dataset.d),
   saveRec:el=>{const ds=el.dataset.d,f=readForm(el.closest('.sheet'));let r;
     if(f.stato==='assenza')r={stato:'assenza',tipo:f.tipo||'altro',note:(f.note||'').trim()};
-    else{if(!f.start||!f.end)return toast('Inserisci ingresso e uscita');if(spanMin(f.start,f.end,f.pause)<=0)return toast('Controlla gli orari');
-      r={stato:'lavorato',start:f.start,end:f.end,pause:f.pause,extra:!!f.extra,note:(f.note||'').trim()};}
+    else{if(!f.start||!f.end)return toast('Inserisci ingresso e uscita');if(spanMin(f.start,f.end)<=0)return toast('Controlla gli orari');
+      r={stato:'lavorato',start:f.start,end:f.end,note:(f.note||'').trim()};}
     r.at=iso();S.records[ds]=r;save();closeSheet();render();toast('Salvato');},
   delRec:el=>{const ds=el.dataset.d;confirmDialog('Eliminare la registrazione?',`I dati di ${dayLabel(ds)} verranno rimossi.`,'Elimina',()=>{delete S.records[ds];save();render();toast('Registrazione eliminata');},true);},
+  editFb:el=>openFb(el.dataset.d),
+  saveFb:el=>{const ds=el.dataset.d,f=readForm(el.closest('.sheet'));
+    if(!f.start||!f.end||spanMin(f.start,f.end)<=0)return toast('Controlla gli orari');
+    S.fuori[ds]={start:f.start,end:f.end,note:(f.note||'').trim(),at:iso()};save();closeSheet();render();toast('Ore fuori busta salvate');},
+  delFb:el=>{const ds=el.dataset.d;confirmDialog('Eliminare le ore fuori busta?',`Le ore fuori busta di ${dayLabel(ds)} verranno rimosse.`,'Elimina',()=>{delete S.fuori[ds];save();render();toast('Ore fuori busta eliminate');},true);},
+  yrOpen:el=>{const ym=el.dataset.ym;if(isFinal(ym)){ui.archYear=null;ui.archYm=ym;render();window.scrollTo(0,0);}else{ui.mesYm=ym;switchTab('mese');}},
   confirmOne:el=>{closeSheet();setTimeout(()=>openConfirm([el.dataset.d]),120);},
-  cfYes:el=>{const card=el.closest('.cf-card'),ds=card.dataset.d,p=planFor(ds);card.dataset.extra=p.extra?'1':'';
+  cfYes:el=>{const card=el.closest('.cf-card'),ds=card.dataset.d,p=planFor(ds);
     cfSwap(card,`<div class="cf-date">${ICON.cal}<span>${cap(dayLabel(ds))}</span></div><h2 class="cf-q sm">Controlla gli orari</h2>
-    <p class="muted">Modificali se sei entrato dopo, uscito prima o hai fatto straordinari.</p>${workFields(p.start,p.end,p.pause)}${calcBox()}
+    <p class="muted">Modificali se sei entrato dopo o uscito prima o dopo.</p>${workFields(p.start,p.end)}${calcBox()}
     <div class="btn-row"><button class="btn" data-act="cfBack">Indietro</button><button class="btn primary" data-act="cfSaveWork">Conferma</button></div>`);
     card.oninput=()=>updCalc(card);updCalc(card);},
   cfNo:el=>{const card=el.closest('.cf-card'),ds=card.dataset.d;card.oninput=null;
@@ -928,8 +980,8 @@ const A={
     <div class="btn-row"><button class="btn" data-act="cfBack">Indietro</button><button class="btn primary" data-act="cfSaveAbs">Registra assenza</button></div>`);},
   cfBack:el=>{const card=el.closest('.cf-card');card.oninput=null;cfSwap(card,cfAsk(card.dataset.d));},
   cfSaveWork:el=>{const card=el.closest('.cf-card'),ds=card.dataset.d,f=readForm(card);
-    if(!f.start||!f.end||spanMin(f.start,f.end,f.pause)<=0)return toast('Controlla gli orari');
-    S.records[ds]={stato:'lavorato',start:f.start,end:f.end,pause:f.pause,extra:card.dataset.extra==='1',note:'',at:iso()};cfNext(card);},
+    if(!f.start||!f.end||spanMin(f.start,f.end)<=0)return toast('Controlla gli orari');
+    S.records[ds]={stato:'lavorato',start:f.start,end:f.end,note:'',at:iso()};cfNext(card);},
   cfSaveAbs:el=>{const card=el.closest('.cf-card'),ds=card.dataset.d,f=readForm(card);
     S.records[ds]={stato:'assenza',tipo:f.tipo||'altro',note:(f.note||'').trim(),at:iso()};cfNext(card);},
   cfLater:()=>{ui.snoozed=true;cfClose(false);},
@@ -947,11 +999,11 @@ const A={
   archBack:()=>{ui.archYm=null;ui.archYear=null;render();},
   editDay:el=>{const i=+el.dataset.i,w=S.settings.weekly[i];
     openSheet(`${sheetHead('Orario settimanale',cap(GIORNI[i]))}<div class="list"><div class="li"><span>Giorno lavorativo</span><label class="switch"><input type="checkbox" name="on"${w.on?' checked':''}><span></span></label></div></div>
-    ${workFields(w.start,w.end,w.pause)}${calcBox('Ore previste','Oltre contratto')}<button class="btn primary block mt" data-act="saveDay" data-i="${i}">Salva</button>
+    ${workFields(w.start,w.end,'',true)}${calcBox('Ore previste')}<button class="btn primary block mt" data-act="saveDay" data-i="${i}">Salva</button>
     <p class="caption">Vale per tutte le settimane, compresi i giorni passati non ancora confermati.</p>`,sh=>{sh.addEventListener('input',()=>updCalc(sh));updCalc(sh);});},
   saveDay:el=>{const i=+el.dataset.i,f=readForm(el.closest('.sheet'));
-    if(f.on&&spanMin(f.start,f.end,f.pause)<=0)return toast('Controlla gli orari');
-    S.settings.weekly[i]={on:!!f.on,start:f.start,end:f.end,pause:f.pause};save();closeSheet();render();toast('Orario aggiornato');},
+    if(f.on&&spanMin(f.start,f.end)<=0)return toast('Controlla gli orari');
+    S.settings.weekly[i]={on:!!f.on,start:f.start,end:f.end};save();closeSheet();render();toast('Orario aggiornato');},
   addHol:()=>{openSheet(`${sheetHead('Festività personalizzata','Nuova festività')}<div class="list"><div class="li"><input class="inp wide" name="name" maxlength="60" placeholder="Nome (es. San Giovanni)"></div>
     <div class="li"><span>Giorno</span><select name="d">${Array.from({length:31},(_,i)=>`<option>${i+1}</option>`).join('')}</select></div>
     <div class="li"><span>Mese</span><select name="m">${MESI.map((m,i)=>`<option value="${i+1}">${cap(m)}</option>`).join('')}</select></div></div>
@@ -965,7 +1017,7 @@ const A={
     S=defaults();holCache={};save();render();toast('Dati cancellati');},true),
 };
 const CH={
-  toggleDay:el=>{S.settings.weekly[+el.dataset.i].on=el.checked;save();setTimeout(render,250);},
+  toggleDay:el=>{const w=S.settings.weekly[+el.dataset.i];w.on=el.checked;if(w.on)w.end=endFrom(w.start);save();setTimeout(render,250);},
   startDate:el=>{if(!el.value)return;S.settings.startDate=el.value;save();toast('Data di inizio aggiornata');},
 };
 
@@ -982,6 +1034,9 @@ async function init(){
   document.addEventListener('click',e=>{const el=e.target.closest('[data-act]');if(!el)return;const f=A[el.dataset.act];if(f)f(el,e);});
   document.addEventListener('change',e=>{const el=e.target;if(el.id==='fileIn'){if(el.files[0])importBackup(el.files[0]);el.value='';return;}
     const f=CH[el.dataset.change];if(f)f(el);});
+  document.addEventListener('input',e=>{const el=e.target;if(el.dataset&&el.dataset.auto&&el.value){const end=el.closest('.list')?.querySelector('input[data-end]');if(end)end.value=endFrom(el.value);}},true);
+  ['gesturestart','gesturechange','gestureend'].forEach(ev=>document.addEventListener(ev,e=>e.preventDefault(),{passive:false}));
+  document.addEventListener('touchmove',e=>{if(e.touches.length>1)e.preventDefault();},{passive:false});
   document.addEventListener('keydown',e=>{if(e.key==='Escape'){if($('.sheet-layer'))closeSheet();else if(cf)A.cfLater();}});
   document.addEventListener('visibilitychange',()=>{
     if(document.visibilityState==='hidden'){lastHidden=Date.now();return;}

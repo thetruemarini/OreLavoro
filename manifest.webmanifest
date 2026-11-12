@@ -1,6 +1,6 @@
 {
-  "name": "Ore lavoro",
-  "short_name": "Ore",
+  "name": "OreLavoro",
+  "short_name": "OreLavoro",
   "lang": "it",
   "start_url": "./",
   "scope": "./",
