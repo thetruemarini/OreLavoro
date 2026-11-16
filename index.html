@@ -463,6 +463,16 @@ button.pill.sm::before{content:"";position:absolute;inset:-6px -2px}
 .sheet[data-ov=fuori] .ovf-time{display:block}
 .legend{gap:var(--sp-2) var(--sp-3)}
 
+/* ===== v1.4: ferie programmate ===== */
+.s-vac{background-color:var(--st-absent-bg);color:var(--st-absent);
+  background-image:repeating-linear-gradient(135deg,transparent 0 5px,color-mix(in srgb,var(--st-absent) 14%,transparent) 5px 7px)}
+.sw.s-vac{background-color:var(--st-absent-bg);outline:1.5px solid var(--st-absent);outline-offset:-1.5px}
+.bar.s-vac{background:var(--st-absent);opacity:.55}
+.vac-btn{margin:-4px 0 var(--sp-4);color:var(--st-absent);background:var(--st-absent-bg)}
+.inp.wide.list-inp{display:block;width:100%;background:var(--list);border-radius:var(--r-md);padding:0 var(--sp-4)}
+#view .list-inp{background:var(--card)}
+.btn[disabled]{opacity:.45;pointer-events:none}
+
 </style>
 </head>
 <body>
@@ -524,6 +534,7 @@ const ICON={
   up:'<svg viewBox="0 0 24 24"><path d="M12 15V4M7.5 8.5L12 4l4.5 4.5M5 19.5h14"/></svg>',
   print:'<svg viewBox="0 0 24 24"><path d="M7 9V4h10v5M7 17H5a1.5 1.5 0 0 1-1.5-1.5v-5A1.5 1.5 0 0 1 5 9h14a1.5 1.5 0 0 1 1.5 1.5v5A1.5 1.5 0 0 1 19 17h-2"/><rect x="7" y="14" width="10" height="6" rx="1"/></svg>',
   table:'<svg viewBox="0 0 24 24"><rect x="3.5" y="4.5" width="17" height="15" rx="2.5"/><path d="M3.5 9.5h17M3.5 14.5h17M9.5 9.5v10"/></svg>',
+  sun:'<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2.5v2M12 19.5v2M4.6 4.6l1.4 1.4M18 18l1.4 1.4M2.5 12h2M19.5 12h2M4.6 19.4L6 18M18 6l1.4-1.4"/></svg>',
   plus:'<svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>',
   trash:'<svg viewBox="0 0 24 24"><path d="M4.5 7h15M9.5 7V4.5h5V7M6.5 7l1 12.5h9l1-12.5"/></svg>',
   shield:'<svg viewBox="0 0 24 24"><path d="M12 3.5l7 3v5c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9v-5z"/><path d="M9 12l2 2 4-4"/></svg>',
@@ -581,6 +592,7 @@ function planFor(ds){
   const ov=S.overrides[ds],hol=holidayName(ds),w=S.settings.weekly[parse(ds).getDay()];
   if(ov){
     if(ov.tipo==='riposo')return{working:false,kind:'riposo',hol};
+    if(ov.tipo==='ferie')return{working:false,kind:'ferie',note:ov.note||'',hol};
     if(ov.tipo==='festivo')return{working:false,kind:'festivo',hol:ov.nome||'Festività locale'};
     return{working:true,kind:ov.tipo==='fuori'?'fuori':'orario',fb:ov.tipo==='fuori',start:ov.start,end:ov.end,hol};
   }
@@ -588,6 +600,17 @@ function planFor(ds){
   if(w.on)return{working:true,kind:w.fb?'fuori':'ordinario',fb:!!w.fb,start:w.start,end:w.end};
   return{working:false,kind:'libero'};
 }
+/* piano senza le ferie programmate: serve per capire quali giorni sarebbero lavorativi */
+function basePlan(ds){const ov=S.overrides[ds];if(ov?.tipo!=='ferie')return planFor(ds);delete S.overrides[ds];const p=planFor(ds);S.overrides[ds]=ov;return p;}
+function ferieDays(from,to){const out=[];let d=parse(from);const end=parse(to);let g=0;
+  while(d<=end&&g++<400){const ds=ymd(d),p=basePlan(ds);if(p.working&&!p.fb&&!S.records[ds]&&!isFinal(ymOf(ds)))out.push(ds);d=addDays(d,1);}return out;}
+function ferieGroups(){const ds=Object.keys(S.overrides).filter(k=>S.overrides[k].tipo==='ferie'&&!S.records[k]).sort();const g=[];
+  for(const d of ds){const last=g[g.length-1];if(last&&(parse(d)-parse(last.to))/864e5<=4){last.to=d;last.days.push(d);}else g.push({from:d,to:d,days:[d],note:S.overrides[d].note||''});}return g;}
+/* le ferie programmate diventano assenze registrate quando arriva il giorno */
+function autoFerie(){const t=todayStr();let n=0;
+  for(const[ds,ov]of Object.entries(S.overrides)){if(ov.tipo!=='ferie'||ds>t||S.records[ds]||isFinal(ymOf(ds))||ds<S.settings.startDate)continue;
+    S.records[ds]={stato:'assenza',tipo:'ferie',note:ov.note||'',auto:true,at:iso()};n++;}
+  if(n)save();return n;}
 function spanMin(start,end){const s=toMin(start),e=toMin(end);if(s==null||e==null)return 0;let d=e-s;if(d<0)d+=1440;return d;}
 const endFrom=start=>fromMin(((toMin(start)||0)+S.settings.dailyMin)%1440);
 function calcRec(r){
@@ -622,6 +645,7 @@ function dayStatus(ds,table=false){
   const p=planFor(ds);
   if(!table){const f=fbOf(ds);if(f)return f.paid?'worked':'fb';}
   if(p.kind==='festivo')return 'holiday';
+  if(p.kind==='ferie')return 'vac';
   if(p.working){
     if(p.fb){if(table)return 'off';return isStarted(ds,p)&&ds>=S.settings.startDate&&!S.fuori[ds]?'pending':(S.fuori[ds]?'off':'fbplan');}
     if(ds>=S.settings.startDate&&!isFinal(ymOf(ds))&&isStarted(ds,p))return 'pending';return 'planned';}
@@ -656,6 +680,7 @@ function rowInfo({ds,r,p,st,c}){const t=todayStr();
   if(r&&r.stato==='lavorato')return{title:`${r.start} – ${r.end}`,sub:r.note||'',hours:fmtHM(c.worked),type:'Lavorato'};
   if(r)return{title:ASSENZE[r.tipo]||'Assenza',sub:r.note||'Assenza',hours:'—',type:ASSENZE[r.tipo]||'Assenza'};
   if(st==='holiday')return{title:p.hol,sub:'Festivo',hours:'',type:'Festivo'};
+  if(st==='vac')return{title:'Ferie programmate',sub:p.note||'',hours:'',type:'Ferie programmate'};
   if(st==='pending')return{title:'Da confermare',sub:`Previsto ${p.start} – ${p.end}`,hours:'—',type:'Da confermare'};
   if(st==='planned'){const fut=ds>t;return{title:fut?'Programmato':'Non registrato',sub:`${p.start} – ${p.end}`,hours:'',type:fut?'Programmato':'Non registrato'};}
   return{title:'Riposo',sub:'',hours:'',type:'Riposo'};
@@ -712,13 +737,13 @@ function gridHTML(ym){
   for(let d=1;d<=daysInMonth(ym);d++){
     const ds=`${ym}-${pad(d)}`,r=S.records[ds],fb=fbOf(ds),st=dayStatus(ds);let sub='';
     if(r&&r.stato==='lavorato')sub=fmtHM(calcRec(r).worked);else if(r)sub=ABBR[r.tipo]||'ass.';
-    else if(fb)sub='+'+fmtHM(fbMin(ds));else if(st==='holiday')sub='fest.';
+    else if(fb)sub='+'+fmtHM(fbMin(ds));else if(st==='holiday')sub='fest.';else if(st==='vac')sub='ferie';
     const lab=fb&&!r?(fb.paid?'fuori busta pagato':'fuori busta da pagare'):ST_LABEL[st].toLowerCase();
     const dot=fb&&st!=='fb'?`<i class="fbdot${fb.paid?' paid':''}"></i>`:'';
-    h+=`<button class="day s-${st}${ds===t?' today':''}${S.overrides[ds]?' has-ov':''}" data-act="day" data-d="${ds}" aria-label="${cap(dayLabel(ds))}, ${lab}${sub?', '+sub:''}">${dot}<span class="n">${d}</span><span class="sub">${sub}</span></button>`;
+    h+=`<button class="day s-${st}${ds===t?' today':''}${S.overrides[ds]&&S.overrides[ds].tipo!=='ferie'?' has-ov':''}" data-act="day" data-d="${ds}" aria-label="${cap(dayLabel(ds))}, ${lab}${sub?', '+sub:''}">${dot}<span class="n">${d}</span><span class="sub">${sub}</span></button>`;
   }
   return h;}
-function legend(){return `<div class="legend">${[['planned','Programmato'],['worked','Lavorato o pagato'],['pending','Da confermare'],['fb','Fuori busta da pagare'],['absent','Assenza'],['holiday','Festivo']]
+function legend(){return `<div class="legend">${[['planned','Programmato'],['worked','Lavorato o pagato'],['pending','Da confermare'],['fb','Fuori busta da pagare'],['vac','Ferie programmate'],['absent','Assenza'],['holiday','Festivo']]
   .map(([k,l])=>`<span class="lg"><i class="sw s-${k}"></i>${l}</span>`).join('')}</div>`;}
 function payStrip(){const l=fbUnpaid();if(!l.length)return '';const tot=l.reduce((a,ds)=>a+fbMin(ds),0);
   return `<button class="fb-strip" data-act="openPay">${ICON.euro}<span class="bt"><b>Fuori busta da pagare</b><span>${plural(l.length,'giornata','giornate')}</span></span><b class="num">${fmtHM(tot)} h</b>${ICON.right}</button>`;}
@@ -727,6 +752,7 @@ function todayCard(){
   if(r&&r.stato==='lavorato'){big=fmtHM(calcRec(r).worked);sub=`Lavorate · ${r.start}–${r.end}`;}
   else if(r){big=ASSENZE[r.tipo];sub='Assenza registrata';}
   else if(p.working){big=fmtHM(spanMin(p.start,p.end));sub=`${p.fb?'Fuori busta':'Previste'} · ${p.start}–${p.end}`;}
+  else if(p.kind==='ferie'){big='Ferie';sub=p.note||'Giornata di ferie';}
   else{big=p.kind==='festivo'?'Festivo':'Riposo';sub=p.hol||'Nessun turno programmato';}
   if(fb)sub=r?sub+` · +${fmtHM(fbMin(t))} fuori busta`:`Fuori busta · ${fb.start}–${fb.end}`,big=r?big:fmtHM(fbMin(t));
   const m=monthTotals(ymOf(t));
@@ -737,7 +763,8 @@ function vCal(){const t=todayStr();
   `<section class="card cal"><div class="cal-head"><button class="icon-btn" data-act="calPrev" aria-label="Mese precedente">${ICON.left}</button><h2 id="calTitle">${ymLabel(ui.calYm)}</h2><button class="icon-btn" data-act="calNext" aria-label="Mese successivo">${ICON.right}</button></div>
   <div class="dow">${['L','M','M','G','V','S','D'].map(x=>`<span>${x}</span>`).join('')}</div>
   <div class="grid-wrap" id="gridWrap"><div class="grid" id="calGrid">${gridHTML(ui.calYm)}</div></div>
-  <button class="link today-link" data-act="calToday"${ui.calYm===ymOf(t)?' hidden':''}>Torna a oggi</button></section>`+legend();}
+  <button class="link today-link" data-act="calToday"${ui.calYm===ymOf(t)?' hidden':''}>Torna a oggi</button></section>`+legend()+
+  `<button class="btn block vac-btn" data-act="planFerie">${ICON.sun}Programma ferie</button>`;}
 function calShift(dir){
   ui.calYm=ymAdd(ui.calYm,dir);const g=$('#calGrid');if(!g)return render();
   $('#calTitle').textContent=ymLabel(ui.calYm);$('.today-link').hidden=ui.calYm===ymOf(todayStr());
@@ -749,10 +776,11 @@ function bindSwipe(){const w=$('#gridWrap');if(!w)return;let x0=null,y0=0;
     if(Math.abs(dx)>45&&Math.abs(dx)>Math.abs(dy)*1.3){swipedAt=Date.now();calShift(dx<0?1:-1);}},{passive:true});}
 
 /* --- dettaglio giorno (bottom sheet) --- */
-const ST_LABEL={planned:'Programmato',worked:'Lavorato',absent:'Assenza',holiday:'Festivo',pending:'Da confermare',off:'Giorno libero',fb:'Fuori busta da pagare',fbplan:'Fuori busta programmato'};
+const ST_LABEL={planned:'Programmato',worked:'Lavorato',absent:'Assenza',holiday:'Festivo',pending:'Da confermare',off:'Giorno libero',vac:'Ferie programmate',fb:'Fuori busta da pagare',fbplan:'Fuori busta programmato'};
 function planText(p){
   if(p.working)return `${p.start} – ${p.end} · ${fmtHM(spanMin(p.start,p.end))} h${p.fb?' · fuori busta':''}`;
   if(p.kind==='festivo')return `Festività: ${esc(p.hol)}`;
+  if(p.kind==='ferie')return `Ferie programmate${p.note?` · ${esc(p.note)}`:''}`;
   return p.kind==='riposo'?'Giorno non lavorativo':'Giorno libero';}
 function recText(r){
   if(r.stato==='lavorato')return `<span>${r.start} – ${r.end}<small>${fmtHM(calcRec(r).worked)} h lavorate${r.note?` · ${esc(r.note)}`:''}</small></span>`;
@@ -775,12 +803,13 @@ function openDay(ds){
 function ovSection(ds,p,ov){const w=S.settings.weekly[parse(ds).getDay()];
   const st=ov?.start||p.start||w.start,en=ov?.end||p.end||endFrom(st);
   return `<div class="group-title">Modifica solo questo giorno</div>
-  <div class="chips" data-name="ov" data-value="${ov?.tipo||''}">${[['orario','Orario diverso'],['fuori','Fuori busta'],['riposo','Non lavorativo'],['festivo','Festività locale']]
+  <div class="chips" data-name="ov" data-value="${ov?.tipo||''}">${[['ferie','Ferie'],['orario','Orario diverso'],['fuori','Fuori busta'],['riposo','Non lavorativo'],['festivo','Festività locale']]
     .map(([v,l])=>`<button data-act="seg" data-v="${v}" aria-pressed="${ov?.tipo===v}">${l}</button>`).join('')}</div>
   <div class="ovf ovf-time">${workFields(st,en,'ov',true)}<p class="caption">Vale anche per lavorare in un giorno libero.</p></div>
   <div class="ovf ovf-hol"><div class="list mt"><div class="li"><input class="inp wide" name="ovName" maxlength="60" placeholder="Nome (es. Santo patrono)" value="${esc(ov?.nome||'')}"></div></div></div>
   <div class="ovf ovf-any"><button class="btn primary block mt" data-act="ovSave" data-d="${ds}">Salva modifica</button></div>
-  ${ov?`<button class="btn block mt danger" data-act="ovReset" data-d="${ds}">Ripristina orario ricorrente</button>`:''}
+  ${ov?`<button class="btn block mt danger" data-act="ovReset" data-d="${ds}">${ov.tipo==='ferie'?'Annulla ferie di questo giorno':'Ripristina orario ricorrente'}</button>`:''}
+  <button class="link mt" data-act="planFerie" data-from="${ds}">${ICON.sun}Programma più giorni di ferie da qui</button>
   <p class="caption">L'orario settimanale ricorrente non viene modificato.</p>`;}
 
 /* --- campi orario condivisi --- */
@@ -954,6 +983,9 @@ function vImp(){const s=S.settings,y=new Date().getFullYear();
   `<div class="group-title">Ore giornaliere</div><div class="list"><div class="li"><span>Ore al giorno<small>Calcola l'uscita</small></span>${stepper('daily',s.dailyMin,60,840,15,'daily')}</div></div>
   <p class="caption">Es. ingresso 9:00 + ${fmtHM(s.dailyMin)} h → uscita ${endFrom('09:00')}. Aggiorna l'uscita di tutti i giorni lavorativi.</p>
   <div class="group-title">Orario settimanale</div><div class="list">${days}</div><p class="caption">Tocca un giorno per cambiare orario o tipo (lavorativa, fuori busta, riposo). Per una sola data usa il calendario.</p>
+  <div class="group-title">Ferie programmate</div><div class="list">${ferieGroups().map(g=>`<div class="li"><span>${g.from===g.to?cap(dayLabel(g.from)):`Dal ${dayLabel(g.from)} al ${dayLabel(g.to)}`}<small>${plural(g.days.length,'giorno','giorni')}${g.note?` · ${esc(g.note)}`:''}</small></span><button class="link" data-act="delFerie" data-from="${g.from}" data-to="${g.to}" aria-label="Annulla ferie">${ICON.trash}</button></div>`).join('')}
+  <div class="li"><button class="li-main link" data-act="planFerie" style="justify-content:flex-start;padding:0">${ICON.sun}Programma ferie</button></div></div>
+  <p class="caption">Il giorno stesso le ferie vengono registrate da sole come assenza, senza richiesta di conferma.</p>
   <div class="group-title">Conteggio</div><div class="list"><div class="li"><span>Inizio conteggio<small>Conferme richieste da questa data</small></span><input type="date" data-change="startDate" value="${s.startDate}"></div></div>
   <div class="group-title">Festività personalizzate</div><div class="list">${cust}<div class="li"><button class="li-main link" data-act="addHol" style="justify-content:flex-start;padding:0">${ICON.plus}Aggiungi festività (es. santo patrono)</button></div></div>
   <details class="mt"><summary class="caption" style="cursor:pointer;min-height:32px">Festività nazionali ${y} (calcolate automaticamente)</summary><div class="list mt">${naz}</div></details>
@@ -963,7 +995,7 @@ function vImp(){const s=S.settings,y=new Date().getFullYear();
   <p class="caption">I dati sono salvati solo su questo dispositivo. Se cancelli i dati di Safari o rimuovi l'app dalla schermata Home vanno persi: esporta un backup ogni tanto e conservalo (es. in File o iCloud Drive).</p>
   <div class="group-title">Dati</div><div class="list">
   <div class="li"><button class="li-main link" data-act="wipe" style="padding:0;justify-content:flex-start;color:var(--danger)">Cancella tutti i dati</button></div></div>
-  <p class="caption" style="text-align:center;margin-top:24px">OreLavoro · versione 1.3<br>Nessun server, nessun account: tutto resta sul tuo telefono.</p>`;}
+  <p class="caption" style="text-align:center;margin-top:24px">OreLavoro · versione 1.4<br>Nessun server, nessun account: tutto resta sul tuo telefono.</p>`;}
 
 /* ================= Sheet e dialoghi ================= */
 function openSheet(html,onMount,opts={}){
@@ -1058,7 +1090,7 @@ const A={
   ovSave:el=>{const ds=el.dataset.d,f=readForm(el.closest('.sheet')),tipo=f.ov;if(!tipo)return;const o={tipo};
     if(tipo==='orario'||tipo==='fuori'){if(spanMin(f.ovStart,f.ovEnd)<=0)return toast(ERR_TIME);Object.assign(o,{start:f.ovStart,end:f.ovEnd});}
     if(tipo==='festivo')o.nome=(f.ovName||'').trim()||'Festività locale';
-    S.overrides[ds]=o;save();closeSheet();render();toast('Giorno aggiornato');},
+    S.overrides[ds]=o;if(tipo==='ferie')autoFerie();save();closeSheet();render();toast(tipo==='ferie'?'Ferie programmate':'Giorno aggiornato');},
   ovReset:el=>{delete S.overrides[el.dataset.d];save();closeSheet();render();toast('Orario ricorrente ripristinato');},
   editRec:el=>openEditor(el.dataset.d),
   saveRec:el=>{const ds=el.dataset.d,f=readForm(el.closest('.sheet'));let r;
@@ -1127,6 +1159,22 @@ const A={
   saveHol:el=>{const f=readForm(el.closest('.sheet'));const name=(f.name||'').trim();if(!name)return toast('Inserisci un nome');
     const m=+f.m,d=Math.min(+f.d,new Date(2024,m,0).getDate());
     S.settings.customHolidays.push({md:`${pad(m)}-${pad(d)}`,name});holCache={};save();closeSheet();render();toast('Festività aggiunta');},
+  planFerie:el=>{closeSheet();const from=el.dataset.from||todayStr();
+    setTimeout(()=>openSheet(`${sheetHead('Ferie','Programma ferie')}
+    <div class="list"><div class="li"><span>Dal</span><input type="date" name="from" value="${from}"></div><div class="li"><span>Al</span><input type="date" name="to" value="${from}"></div></div>
+    <div class="calc"><span>Giorni di ferie</span><b class="num" data-c="n">0</b></div>
+    <div class="group-title">Nota</div><input class="inp wide list-inp" name="note" maxlength="60" placeholder="Facoltativa (es. Vacanze estive)">
+    <p class="caption">Contano solo i giorni lavorativi: weekend, festivi e giorni fuori busta restano esclusi.</p>
+    <button class="btn primary block mt" data-act="saveFerie">Segna ferie</button>`,sh=>{
+      const upd=()=>{const f=readForm(sh);const ok=f.from&&f.to&&f.to>=f.from;const n=ok?ferieDays(f.from,f.to).length:0;
+        sh.querySelector('[data-c=n]').textContent=n;const b=sh.querySelector('[data-act=saveFerie]');b.textContent=n?`Segna ${plural(n,'giorno','giorni')} di ferie`:'Nessun giorno lavorativo';b.disabled=!n;};
+      sh.addEventListener('input',e=>{if(e.target.name==='from'){const to=sh.querySelector('[name=to]');if(!to.value||to.value<e.target.value)to.value=e.target.value;}upd();});upd();}),120);},
+  saveFerie:el=>{const f=readForm(el.closest('.sheet'));if(!f.from||!f.to||f.to<f.from)return toast('La data di fine deve essere dopo quella di inizio');
+    const days=ferieDays(f.from,f.to);if(!days.length)return toast('Nel periodo non ci sono giorni lavorativi');
+    days.forEach(ds=>{S.overrides[ds]={tipo:'ferie',note:(f.note||'').trim()};});autoFerie();save();closeSheet();ui.calYm=ymOf(days[0]);render();
+    toast(`${plural(days.length,'giorno','giorni')} di ferie programmati`);},
+  delFerie:el=>{const{from,to}=el.dataset;const ds=Object.keys(S.overrides).filter(k=>S.overrides[k].tipo==='ferie'&&!S.records[k]&&k>=from&&k<=to);
+    confirmDialog('Annullare queste ferie?',`${plural(ds.length,'giorno torna','giorni tornano')} a seguire l'orario settimanale.`,'Annulla ferie',()=>{ds.forEach(k=>delete S.overrides[k]);save();render();toast('Ferie annullate');},true);},
   delHol:el=>{const i=+el.dataset.i,h=S.settings.customHolidays[i];
     confirmDialog('Eliminare la festività?',`${esc(h.name)} non sarà più considerata festiva.`,'Elimina festività',()=>{S.settings.customHolidays.splice(i,1);holCache={};save();render();},true);},
   wipe:()=>confirmDialog('Cancellare tutti i dati?','Orari, registrazioni e archivio verranno eliminati da questo dispositivo. L\'operazione non si può annullare.','Cancella tutto',()=>{
@@ -1141,6 +1189,7 @@ const CH={
 /* ================= Avvio ================= */
 function startupChecks(){
   if(cf||$('.sheet-layer'))return;
+  if(autoFerie())render();
   const list=pendingList();
   if(list.length&&!ui.snoozed){openConfirm(list);return;}
   if(checkPayment())return;
@@ -1148,6 +1197,7 @@ function startupChecks(){
 }
 async function init(){
   await load();
+  autoFerie();
   render();
   document.addEventListener('click',e=>{const el=e.target.closest('[data-act]');if(!el)return;const f=A[el.dataset.act];if(f)f(el,e);});
   document.addEventListener('change',e=>{const el=e.target;if(el.id==='fileIn'){if(el.files[0])importBackup(el.files[0]);el.value='';return;}
